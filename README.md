@@ -1,5 +1,7 @@
 # Agente Autónomo de Triaje de Soporte
 
+[![CI](https://github.com/wevillegas/automatizacion-typescript-n8n/actions/workflows/ci.yml/badge.svg)](https://github.com/wevillegas/automatizacion-typescript-n8n/actions/workflows/ci.yml)
+
 Backend headless en TypeScript que decide qué tools ejecutar ante una solicitud de soporte, con aprobación humana obligatoria para acciones de riesgo alto. n8n gestiona la entrada de eventos y las notificaciones; el agente contiene el loop, el registro de tools y la validación.
 
 Ver la ficha técnica completa en `Ficha Técnica Agente Autónomo de Triaje de Soporte (TypeScript + n8n).md`.
