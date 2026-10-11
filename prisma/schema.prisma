@@ -1,0 +1,31 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  requestId String
+  toolName  String
+  args      Json
+  result    Json?
+  risk      String
+  decidedBy String? // null si fue automático, o el usuario que aprobó/rechazó
+  createdAt DateTime @default(now())
+}
+
+model PendingApproval {
+  id        String   @id @default(cuid())
+  requestId String   @unique
+  toolName  String
+  args      Json
+  callId    String // id de la tool call del modelo, para reinsertar su resultado al reanudar
+  messages  Json // historial de LLMMessage[] en el punto de corte, para reanudar el loop
+  status    String   @default("pending") // pending | approved | rejected
+  createdAt DateTime @default(now())
+}

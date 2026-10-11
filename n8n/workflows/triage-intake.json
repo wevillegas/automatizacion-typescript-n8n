@@ -1,0 +1,166 @@
+{
+  "name": "Triage Intake",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "triage-intake",
+        "options": {}
+      },
+      "name": "Webhook: evento entrante",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -96,
+        192
+      ],
+      "id": "6ddfb420-d6f9-4156-a95c-85862083a561",
+      "webhookId": "c5be8c37-cf38-4a5e-9ca4-174b6e1436e9"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.status}}",
+              "value2": "pending_approval"
+            }
+          ]
+        }
+      },
+      "name": "¿Requiere aprobación?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        416,
+        192
+      ],
+      "id": "60f9235e-21db-4035-88b3-c6d62be6f02e"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0C7WH2FUA3",
+          "mode": "list",
+          "cachedResultName": "todo-soporte-triage"
+        },
+        "text": "=Acción de riesgo alto pendiente: {{$json.toolName}} con args {{JSON.stringify($json.args)}}. Responder aprobar/rechazar.",
+        "otherOptions": {}
+      },
+      "name": "Notificar en Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2,
+      "position": [
+        656,
+        96
+      ],
+      "id": "d0a7890d-860f-4344-b0d8-d6ee09d612e2",
+      "webhookId": "f11448b2-1b35-4c64-a2bd-10e714ba68fb",
+      "credentials": {
+        "slackApi": {
+          "id": "nQrifISn7ywuhqGK",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0C7WH2FUA3",
+          "mode": "list",
+          "cachedResultName": "todo-soporte-triage"
+        },
+        "text": "=Caso {{$json.requestId}} resuelto: {{$json.text}}",
+        "otherOptions": {}
+      },
+      "name": "Notificar resolución",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2,
+      "position": [
+        656,
+        288
+      ],
+      "id": "0ee2d08e-8565-47d0-babe-c3ea0b900fba",
+      "webhookId": "f8167eba-94c2-44f5-8788-2f1814a42f2b",
+      "credentials": {
+        "slackApi": {
+          "id": "nQrifISn7ywuhqGK",
+          "name": "Slack account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const b = $input.first().json.body;\nconst data = await this.helpers.httpRequest({method:'POST', url:'http://agent:3000/triage', headers:{'x-api-key': $env.API_KEY}, body:{requestId:b.requestId, message:b.message}, json:true});\nreturn [{json:{...data, requestId:b.requestId}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        128,
+        192
+      ],
+      "id": "645e6a27-5f65-4da7-a0e0-3720f8f6de9a",
+      "name": "Code in JavaScript"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook: evento entrante": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Requiere aprobación?": {
+      "main": [
+        [
+          {
+            "node": "Notificar en Slack",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Notificar resolución",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "¿Requiere aprobación?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "e7fe8f4d-0332-4f87-8c1b-a9f15db8c7c4",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b9bcdac99ae5a932255b2813f2b04fa081d0c420dee2571572617b7a0e5ac492"
+  },
+  "nodeGroups": [],
+  "id": "IU06u2Nq7X9rOEyx",
+  "tags": []
+}

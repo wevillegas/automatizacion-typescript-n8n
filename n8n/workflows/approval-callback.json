@@ -1,0 +1,100 @@
+{
+  "name": "Approval Callback",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "approval-callback",
+        "options": {}
+      },
+      "name": "Webhook: respuesta de Slack",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        -144
+      ],
+      "id": "2876659e-3175-4d63-b3ed-ccf0e33495fb",
+      "webhookId": "f3870650-e458-48ed-a48d-516390736afc"
+    },
+    {
+      "parameters": {
+        "jsCode": "const b = $input.first().json.body;\nconst data = await this.helpers.httpRequest({method:'POST', url:'http://agent:3000/approval-callback', headers:{'x-api-key': $env.API_KEY}, body:{requestId:b.requestId, approved:b.approved, decidedBy:b.decidedBy}, json:true});\nreturn [{json:data}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -224,
+        -144
+      ],
+      "id": "acc82a00-fafb-4867-b258-fac2ba021eb7",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0C7WH2FUA3",
+          "mode": "list",
+          "cachedResultName": "todo-soporte-triage"
+        },
+        "text": "={{ $json.text }}",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2,
+      "position": [
+        0,
+        -144
+      ],
+      "id": "c9f0bd02-f99b-4c15-b524-67aabff24f7d",
+      "name": "Send a message",
+      "webhookId": "e772a598-caa1-4a0d-8904-f70f0d947d56",
+      "credentials": {
+        "slackApi": {
+          "id": "nQrifISn7ywuhqGK",
+          "name": "Slack account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook: respuesta de Slack": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "0853be6c-3918-44bd-aa36-173a19dfb04c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b9bcdac99ae5a932255b2813f2b04fa081d0c420dee2571572617b7a0e5ac492"
+  },
+  "nodeGroups": [],
+  "id": "m125dNkCl6fTyBjy",
+  "tags": []
+}
