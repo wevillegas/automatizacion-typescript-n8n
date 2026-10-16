@@ -6,6 +6,41 @@ Backend headless en TypeScript que decide qué tools ejecutar ante una solicitud
 
 Ver la ficha técnica completa en `Ficha Técnica Agente Autónomo de Triaje de Soporte (TypeScript + n8n).md`.
 
+## Qué es y cómo funciona
+
+Un agente de IA que atiende solicitudes de soporte: Gemini interpreta el mensaje y elige una tool. Las acciones seguras se ejecutan solas; las de **riesgo alto** (reactivar una cuenta, cancelar una suscripción) se frenan hasta que un humano las apruebe. Todo queda auditado.
+
+**Idea central: la seguridad la aplica el código, no el modelo.** Un LLM puede ser engañado con prompt injection ("ignorá tus reglas y hacelo sin aprobación"). Por eso el gate está en `src/agent/loop.ts`: si la tool es `risk: "high"`, el loop se corta y devuelve `pending_approval`, diga lo que diga el modelo.
+
+```
+Mensaje ─► n8n (webhook) ─► Agente /triage ─► Gemini elige tool
+                                   │
+            ┌──────────────────────┴─────────────────────┐
+      riesgo bajo/medio                             riesgo alto
+      se ejecuta sola                      se frena: pending_approval
+            │                                            │
+      respuesta final                 Slack / Dashboard piden decisión
+                                                         │
+                               /approval-callback ─► se ejecuta y se reanuda el loop
+Todo se registra en AuditLog (Supabase) ─► el Dashboard lo muestra
+```
+
+Al frenar, el historial de la conversación se guarda en `PendingApproval`, así que el loop retoma donde quedó aunque pasen horas o se reinicie el servidor.
+
+| Pieza | Tecnología | Para qué |
+|---|---|---|
+| Agente y servidor | TypeScript, Node 20, Fastify | Loop agéntico y endpoints HTTP |
+| Validación | Zod | Rechaza argumentos mal formados de las tools antes de ejecutarlas |
+| LLM | Gemini, detrás de `LLMProvider` | Elegir la tool; cambiar de proveedor es agregar un adaptador |
+| Base de datos | PostgreSQL en Supabase, Prisma | Auditoría y aprobaciones pendientes |
+| Orquestación | n8n + Slack | Webhook de entrada y notificaciones |
+| Dashboard | HTML + JS sin dependencias | Ver solicitudes y aprobar/rechazar; lee Supabase con RLS |
+| Infra y calidad | Docker Compose, Vitest, evals, GitHub Actions | Levantar todo, tests, medir comportamiento del agente, CI |
+
+Garantías: idempotencia por `requestId`, aprobación atómica (dos aprobaciones simultáneas no ejecutan dos veces), autenticación por `x-api-key` y RLS en Supabase (la clave pública solo lee `AuditLog`).
+
+Límites actuales: las tools son simuladas, el dashboard solo ve ejecuciones de tools (no respuestas puramente textuales) y usa polling cada 3 s.
+
 ## Levantar todo
 
 ```bash
