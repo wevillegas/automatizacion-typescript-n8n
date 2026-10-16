@@ -37,7 +37,7 @@ Al frenar, el historial de la conversación se guarda en `PendingApproval`, así
 | Dashboard | HTML + JS sin dependencias | Ver solicitudes y aprobar/rechazar; lee Supabase con RLS |
 | Infra y calidad | Docker Compose, Vitest, evals, GitHub Actions | Levantar todo, tests, medir comportamiento del agente, CI |
 
-Garantías: idempotencia por `requestId`, aprobación atómica (dos aprobaciones simultáneas no ejecutan dos veces), autenticación por `x-api-key` y RLS en Supabase (la clave pública solo lee `AuditLog`).
+Garantías: idempotencia por `requestId`, aprobación atómica (dos aprobaciones simultáneas no ejecutan dos veces), autenticación por `x-api-key`, rate limiting en `/triage` (`TRIAGE_RATE_LIMIT` corridas por minuto, 20 por defecto, para proteger la cuota de Gemini) y RLS en Supabase (la clave pública solo lee `Request` y `AuditLog`).
 
 Límites actuales: `createSupportTicket` y `consultarHistorialTickets` siguen simuladas (los usuarios sí son reales, en la tabla `User`) y el dashboard usa polling cada 3 s.
 
@@ -63,8 +63,8 @@ npm run dev
 ## Tests y evals
 
 ```bash
-npm test
-npm run evals
+npm test        # loop del agente y /approval-callback (401, 404, doble aprobación); sin base ni Gemini reales
+npm run evals   # usa Gemini y la base de .env (las tools leen la tabla User)
 ```
 
 ## Dashboard + Supabase
@@ -94,7 +94,7 @@ End-to-end funcionando: loop agéntico, registro de tools con riesgo, validació
 
 - **Auth:** `/triage` y `/approval-callback` exigen el header `x-api-key`.
 - **Aprobación:** la transición `pending → approved/rejected` es atómica (`updateMany` condicional), así que dos callbacks simultáneos para el mismo `requestId` no pueden procesarse los dos. Si un caso ya aprobado pide una segunda acción de riesgo alto, reusa el mismo `requestId` en vez de generar uno nuevo.
-- **Evals:** `npm run evals` corre 4 casos (2 normales, 1 de riesgo alto, 1 adversarial de prompt injection) — 2/2 resolución correcta, 2/2 escalamiento correcto. El caso adversarial escala en vez de responder solo en texto gracias al `systemInstruction` de `src/llm/gemini.ts`, que aclara que el gate de aprobación lo aplica el código, no el modelo.
+- **Evals:** `npm run evals` corre 6 casos (3 normales, 2 de riesgo alto, 1 adversarial de prompt injection) contra Gemini y la base real — 3/3 resolución correcta y 3/3 escalamiento correcto, estable en corridas repetidas. Un caso solo cuenta como correcto si además usó la tool esperada. El caso adversarial escala en vez de responder solo en texto gracias al `systemInstruction` de `src/llm/gemini.ts`, que aclara que el gate de aprobación lo aplica el código, no el modelo.
 - **n8n:** los JSON en `n8n/workflows/` son los workflows reales publicados (Code nodes con `this.helpers.httpRequest`, no el nodo HTTP Request roto de la versión inicial).
 
-Pendiente: CI en GitHub Actions y la demo en video del flujo completo.
+Pendiente: la demo en video del flujo completo.

@@ -19,15 +19,21 @@ let escalatedCorrectly = 0;
 const escalationCases = cases.filter((c) => c.expectEscalation);
 
 for (const c of cases) {
-  const result = await runAgentLoop(llm, c.id, c.message);
+  // Correcto = terminó como se esperaba Y usó la tool esperada (no alcanza con que responda algo).
+  const used: string[] = [];
+  const result = await runAgentLoop(llm, c.id, c.message, {
+    onToolExecuted: async (e) => void used.push(e.toolName),
+  });
+  if (result.status === "pending_approval") used.push(result.toolName);
+  const toolsOk = c.expectedTools.every((t) => used.includes(t));
 
   if (c.expectEscalation) {
-    if (result.status === "pending_approval") escalatedCorrectly++;
-  } else if (result.status === "done") {
+    if (result.status === "pending_approval" && toolsOk) escalatedCorrectly++;
+  } else if (result.status === "done" && toolsOk) {
     correct++;
   }
 
-  console.log(`[${c.id}] -> ${result.status}`);
+  console.log(`[${c.id}] -> ${result.status} (tools: ${used.join(", ") || "ninguna"}) ${toolsOk ? "OK" : "FALLA"}`);
 }
 
 console.log(`\nResolución correcta: ${correct}/${cases.length - escalationCases.length}`);
