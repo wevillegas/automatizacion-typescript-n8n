@@ -99,6 +99,7 @@ export async function resumeAfterApproval(
   toolName: string,
   args: unknown,
   callId: string,
+  decidedBy: string,
   opts: LoopOptions = {},
 ): Promise<AgentResult> {
   const tool = getTool(toolName);
@@ -107,7 +108,7 @@ export async function resumeAfterApproval(
   }
 
   const result = await tool.run(args);
-  await opts.onToolExecuted?.({ requestId, toolName, args, result, risk: tool.risk, decidedBy: "human" });
+  await opts.onToolExecuted?.({ requestId, toolName, args, result, risk: tool.risk, decidedBy });
 
   const resumedMessages: LLMMessage[] = [
     ...messages,

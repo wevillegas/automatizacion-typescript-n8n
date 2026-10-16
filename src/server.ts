@@ -172,6 +172,7 @@ app.post("/approval-callback", async (req, reply) => {
     pending.toolName,
     pending.args,
     pending.callId,
+    decidedBy ?? "unknown",
     { onToolExecuted: logToolExecution },
   );
 
