@@ -5,6 +5,7 @@ ALTER TABLE "AuditLog" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "PendingApproval" ENABLE ROW LEVEL SECURITY; -- sin policy: nadie ve el historial de mensajes
 ALTER TABLE "Request" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "User" ENABLE ROW LEVEL SECURITY;            -- sin policy: solo el backend toca usuarios
+ALTER TABLE "Ticket" ENABLE ROW LEVEL SECURITY;          -- ídem tickets
 
 DROP POLICY IF EXISTS "anon lee auditoria" ON "AuditLog";
 DROP POLICY IF EXISTS "anon lee solicitudes" ON "Request";

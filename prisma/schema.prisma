@@ -31,9 +31,23 @@ model PendingApproval {
 }
 
 model User {
-  id     String @id
-  name   String
-  status String // active | suspended | cancelada
+  id      String   @id
+  name    String
+  status  String // active | suspended | cancelada
+  tickets Ticket[]
+}
+
+// Tickets de soporte que crea y consulta el agente. Se muestran como TCK-<id>.
+model Ticket {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  category  String
+  summary   String
+  status    String   @default("abierto") // abierto | cerrado
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 // Una fila por solicitud entrante: es lo que lee el dashboard.

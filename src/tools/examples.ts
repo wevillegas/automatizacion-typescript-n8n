@@ -32,8 +32,10 @@ registerTool({
     },
     required: ["userId", "category", "summary"],
   },
-  run: async (args: { userId: string; category: string; summary: string }) => {
-    return { ticketId: `TCK-${Date.now()}`, ...args };
+  run: async ({ userId, category, summary }: { userId: string; category: string; summary: string }) => {
+    if (!(await prisma.user.findUnique({ where: { id: userId } }))) return { userId, error: "usuario no encontrado" };
+    const t = await prisma.ticket.create({ data: { userId, category, summary } });
+    return { ticketId: `TCK-${t.id}`, userId, category, summary, status: t.status };
   },
 });
 
@@ -64,13 +66,16 @@ registerTool({
     required: ["userId"],
   },
   run: async ({ userId }: { userId: string }) => {
-    // ponytail: stub en memoria, reemplazar por consulta real vía Prisma cuando exista el modelo de tickets.
+    const tickets = await prisma.ticket.findMany({ where: { userId }, orderBy: { createdAt: "desc" }, take: 10 });
     return {
       userId,
-      tickets: [
-        { ticketId: "TCK-1001", category: "facturación", status: "cerrado" },
-        { ticketId: "TCK-1002", category: "acceso", status: "abierto" },
-      ],
+      tickets: tickets.map((t) => ({
+        ticketId: `TCK-${t.id}`,
+        category: t.category,
+        summary: t.summary,
+        status: t.status,
+        createdAt: t.createdAt.toISOString(),
+      })),
     };
   },
 });
