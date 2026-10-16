@@ -16,6 +16,7 @@ services:
       DATABASE_URL: ${AGENT_DATABASE_URL:-postgresql://agent:agent@postgres:5432/agent}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       API_KEY: ${API_KEY}
+      TRIAGE_RATE_LIMIT: ${TRIAGE_RATE_LIMIT:-20}
       SUPABASE_URL: ${SUPABASE_URL:-}
       SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
       PORT: 3000

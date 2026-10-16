@@ -7,7 +7,7 @@ import { prisma } from "./db/client.js";
 import { resumeAfterApproval, runAgentLoop, type ToolExecutedEvent } from "./agent/loop.js";
 import { GeminiProvider } from "./llm/gemini.js";
 
-const app = Fastify({ logger: true });
+export const app = Fastify({ logger: !process.env.VITEST });
 
 const apiKey = process.env.GEMINI_API_KEY ?? "";
 const llm = new GeminiProvider(apiKey);
@@ -46,6 +46,17 @@ const trackRequest = (requestId: string, message: string, data: RequestState) =>
 const updateRequest = (requestId: string, data: RequestState) =>
   prisma.request.updateMany({ where: { requestId }, data });
 
+// Protege la cuota de Gemini: como mucho TRIAGE_RATE_LIMIT corridas del agente por minuto.
+// ponytail: ventana global en memoria (una sola instancia); usar @fastify/rate-limit con store compartido si se escala.
+const triageLimit = Number(process.env.TRIAGE_RATE_LIMIT ?? 20);
+let triageHits: number[] = [];
+function triageAllowed(now = Date.now()): boolean {
+  triageHits = triageHits.filter((t) => now - t < 60_000);
+  if (triageHits.length >= triageLimit) return false;
+  triageHits.push(now);
+  return true;
+}
+
 app.get("/health", async () => ({ ok: true }));
 
 // Dashboard estático: lee AuditLog desde Supabase con la anon key (pública por diseño, limitada por RLS).
@@ -77,6 +88,10 @@ app.post("/triage", async (req, reply) => {
   const existing = await prisma.pendingApproval.findUnique({ where: { requestId } });
   if (existing) {
     return reply.send({ status: "duplicate_ignored" });
+  }
+
+  if (!triageAllowed()) {
+    return reply.status(429).send({ error: "demasiadas solicitudes, reintentar en un minuto" });
   }
 
   const result = await runAgentLoop(llm, requestId, message, { onToolExecuted: logToolExecution });
@@ -182,7 +197,7 @@ app.post("/approval-callback", async (req, reply) => {
 });
 
 const port = Number(process.env.PORT ?? 3000);
-app.listen({ port, host: "0.0.0.0" }).catch((err) => {
+if (!process.env.VITEST) app.listen({ port, host: "0.0.0.0" }).catch((err) => {
   app.log.error(err);
   process.exit(1);
 });
