@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { prisma } from "../db/client.js";
 import { registerTool } from "./registry.js";
 
 registerTool({
@@ -12,8 +13,8 @@ registerTool({
     required: ["userId"],
   },
   run: async ({ userId }: { userId: string }) => {
-    // ponytail: stub en memoria, reemplazar por consulta real vía Prisma cuando exista el modelo de usuario.
-    return { userId, status: "suspended" };
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    return user ? { userId, name: user.name, status: user.status } : { userId, error: "usuario no encontrado" };
   },
 });
 
@@ -47,7 +48,8 @@ registerTool({
     required: ["userId"],
   },
   run: async ({ userId }: { userId: string }) => {
-    return { userId, status: "active" };
+    const { count } = await prisma.user.updateMany({ where: { id: userId }, data: { status: "active" } });
+    return count ? { userId, status: "active" } : { userId, error: "usuario no encontrado" };
   },
 });
 
@@ -87,6 +89,7 @@ registerTool({
     required: ["userId", "motivo"],
   },
   run: async ({ userId, motivo }: { userId: string; motivo: string }) => {
-    return { userId, status: "cancelada", motivo };
+    const { count } = await prisma.user.updateMany({ where: { id: userId }, data: { status: "cancelada" } });
+    return count ? { userId, status: "cancelada", motivo } : { userId, error: "usuario no encontrado" };
   },
 });

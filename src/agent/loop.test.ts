@@ -1,4 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// Las tools leen/escriben usuarios en la base; en tests la reemplazamos por un fake en memoria.
+vi.mock("../db/client.js", () => ({
+  prisma: {
+    user: {
+      findUnique: async ({ where }: { where: { id: string } }) =>
+        where.id === "8492" ? { id: "8492", name: "Marta", status: "suspended" } : null,
+      updateMany: async () => ({ count: 1 }),
+    },
+  },
+}));
+
 import "../tools/examples.js";
 import type { LLMProvider, LLMResponse } from "../llm/provider.js";
 import { runAgentLoop } from "./loop.js";

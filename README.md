@@ -39,7 +39,7 @@ Al frenar, el historial de la conversación se guarda en `PendingApproval`, así
 
 Garantías: idempotencia por `requestId`, aprobación atómica (dos aprobaciones simultáneas no ejecutan dos veces), autenticación por `x-api-key` y RLS en Supabase (la clave pública solo lee `AuditLog`).
 
-Límites actuales: las tools son simuladas, el dashboard solo ve ejecuciones de tools (no respuestas puramente textuales) y usa polling cada 3 s.
+Límites actuales: `createSupportTicket` y `consultarHistorialTickets` siguen simuladas (los usuarios sí son reales, en la tabla `User`) y el dashboard usa polling cada 3 s.
 
 ## Levantar todo
 
@@ -72,8 +72,8 @@ npm run evals
 Supabase es solo Postgres administrado: el agente (Prisma) escribe ahí y el dashboard lee `AuditLog` por la API REST de Supabase.
 
 1. Crear un proyecto en supabase.com. En `.env`: `DATABASE_URL` (Project Settings → Database, conexión directa o session pooler) y, para Docker, `AGENT_DATABASE_URL` con el mismo valor.
-2. `npx prisma migrate deploy` para crear las tablas.
-3. Ejecutar `supabase/policies.sql` en el SQL Editor (activa RLS: la anon key solo puede leer `AuditLog`, nunca `PendingApproval`).
+2. `npx prisma migrate deploy` para crear las tablas y `npm run seed` para cargar los usuarios de ejemplo (`u-100` activo, `u-200` y `8492` suspendidos).
+3. Ejecutar `supabase/policies.sql` en el SQL Editor (activa RLS: la anon key solo puede leer `Request` y `AuditLog`, nunca `PendingApproval` ni `User`).
 4. Completar `SUPABASE_URL` y `SUPABASE_ANON_KEY` (Project Settings → API) y levantar el agente.
 5. Abrir http://localhost:3000/dashboard y correr `npm run demo` (3 casos: simple, riesgo alto, prompt injection). Los pendientes se aprueban o rechazan desde la página, que pide la `API_KEY` una vez por pestaña.
 

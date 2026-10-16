@@ -10,6 +10,7 @@
     "test": "vitest run",
     "evals": "tsx evals/run.ts",
     "demo": "tsx --env-file=.env demo.ts",
+    "seed": "tsx --env-file=.env prisma/seed.ts",
     "lint": "tsc -p tsconfig.json --noEmit",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev"

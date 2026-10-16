@@ -38,6 +38,14 @@ async function logToolExecution(event: ToolExecutedEvent): Promise<void> {
   });
 }
 
+// Una fila por solicitud, que es lo que lee el dashboard. updateMany: no falla si la fila no existe
+// (aprobaciones creadas antes de que existiera la tabla).
+type RequestState = { status: string; response?: string; toolName?: string; args?: object };
+const trackRequest = (requestId: string, message: string, data: RequestState) =>
+  prisma.request.upsert({ where: { requestId }, create: { requestId, message, ...data }, update: data });
+const updateRequest = (requestId: string, data: RequestState) =>
+  prisma.request.updateMany({ where: { requestId }, data });
+
 app.get("/health", async () => ({ ok: true }));
 
 // Dashboard estático: lee AuditLog desde Supabase con la anon key (pública por diseño, limitada por RLS).
@@ -90,9 +98,11 @@ app.post("/triage", async (req, reply) => {
       result: null,
       risk: "high",
     });
+    await trackRequest(requestId, message, { status: "pending", toolName: result.toolName, args: result.args as object });
     return reply.send({ status: "pending_approval", toolName: result.toolName, args: result.args });
   }
 
+  await trackRequest(requestId, message, { status: "resolved", response: result.text });
   return reply.send(result);
 });
 
@@ -136,6 +146,7 @@ app.post("/approval-callback", async (req, reply) => {
         decidedBy: decidedBy ?? "unknown",
       },
     });
+    await updateRequest(requestId, { status: "rejected" });
     return reply.send({ status: "rejected" });
   }
 
@@ -162,9 +173,11 @@ app.post("/approval-callback", async (req, reply) => {
         status: "pending",
       },
     });
+    await updateRequest(requestId, { status: "pending", toolName: result.toolName, args: result.args as object });
     return reply.send({ status: "pending_approval", requestId, toolName: result.toolName, args: result.args });
   }
 
+  await updateRequest(requestId, { status: "approved", response: result.text });
   return reply.send(result);
 });
 

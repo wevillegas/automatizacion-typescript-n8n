@@ -48,8 +48,9 @@
   .pill.rejected{color:var(--rejected);background:var(--rejected-bg)}
   .pill.resolved{color:var(--resolved);background:var(--resolved-bg)}
   .time{color:var(--mute);font-size:12px}
-  .tool{font-weight:600;font-size:16px}
-  .tool small{font-weight:400;color:var(--mute);font-size:12px;margin-left:8px;font-family:ui-monospace,Consolas,monospace;word-break:break-all}
+  .msg{font-size:16px;font-weight:600}
+  .reply{background:var(--bg);border-radius:10px;padding:10px 12px;font-size:14px}
+  .tool{font-weight:600;font-size:14px}
   pre{margin:0;background:var(--bg);border-radius:10px;padding:10px 12px;font:12px/1.5 ui-monospace,Consolas,monospace;overflow:auto;color:var(--mute)}
   .actions{display:flex;gap:8px}
   button.act{border:0;border-radius:10px;padding:8px 18px;font:inherit;font-weight:600;cursor:pointer;transition:.15s}
@@ -86,12 +87,7 @@ const LABEL = { pending: "⏳ Pendiente", approved: "✓ Aprobada", rejected: "�
 const FILTERS = [["all", "Todas"], ["pending", "Pendientes"], ["approved", "Aprobadas"], ["rejected", "Rechazadas"], ["resolved", "Resueltas"]];
 let rows = [], filter = "all", busy = new Set();
 
-// Estado por requestId, derivado de la última fila de AuditLog.
-function state(r) {
-  if (r.risk !== "high") return "resolved";
-  if (r.decidedBy == null && r.result == null) return "pending";
-  return r.result == null ? "rejected" : "approved";
-}
+const state = (r) => r.status; // resolved | pending | approved | rejected
 
 function ago(iso) {
   const s = Math.max(0, (Date.now() - new Date(iso)) / 1000);
@@ -108,13 +104,11 @@ function toast(msg) {
 
 async function load() {
   try {
-    const res = await fetch(`${SB}/rest/v1/AuditLog?select=*&order=createdAt.asc&limit=500`, {
+    const res = await fetch(`${SB}/rest/v1/Request?select=*&order=createdAt.desc&limit=200`, {
       headers: { apikey: KEY, Authorization: `Bearer ${KEY}` },
     });
     if (!res.ok) throw new Error(`Supabase respondió ${res.status}`);
-    const last = new Map();
-    for (const r of await res.json()) last.set(r.requestId, r);
-    rows = [...last.values()].reverse();
+    rows = await res.json();
     $("dot").className = "dot";
     $("upd").textContent = "en vivo · " + new Date().toLocaleTimeString();
   } catch (e) {
@@ -156,8 +150,10 @@ function card(r) {
   const s = state(r);
   const c = el("article", "req " + s,
     el("div", "top", el("span", "pill " + s, LABEL[s]), el("span", "time", ago(r.createdAt))),
-    el("div", "tool", r.toolName, el("small", "", r.requestId)),
-    el("pre", "", JSON.stringify(r.args, null, 2)));
+    el("div", "msg", "“" + r.message + "”"),
+    el("div", "time", r.requestId));
+  if (r.response) c.append(el("div", "reply", el("b", "", "Agente: "), r.response));
+  if (r.toolName && s !== "resolved") c.append(el("div", "tool", "Acción: " + r.toolName), el("pre", "", JSON.stringify(r.args, null, 2)));
   if (s === "pending") {
     const a = el("div", "actions");
     for (const [txt, ok, cls] of [["Aprobar", true, "ok"], ["Rechazar", false, "no"]]) {
