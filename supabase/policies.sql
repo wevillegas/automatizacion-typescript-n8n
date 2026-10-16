@@ -14,3 +14,10 @@ CREATE POLICY "logueados leen auditoria" ON "AuditLog" FOR SELECT TO authenticat
 
 DROP POLICY IF EXISTS "logueados leen solicitudes" ON "Request";
 CREATE POLICY "logueados leen solicitudes" ON "Request" FOR SELECT TO authenticated USING (true);
+
+-- Realtime: el dashboard recibe los cambios de Request por websocket (respeta la policy de arriba).
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'Request') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE "Request";
+  END IF;
+END $$;

@@ -106,7 +106,7 @@ const SB = "__SUPABASE_URL__", KEY = "__SUPABASE_ANON_KEY__";
 const $ = (id) => document.getElementById(id);
 const LABEL = { pending: "⏳ Pendiente", approved: "✓ Aprobada", rejected: "✕ Rechazada", resolved: "● Resuelta" };
 const FILTERS = [["all", "Todas"], ["pending", "Pendientes"], ["approved", "Aprobadas"], ["rejected", "Rechazadas"], ["resolved", "Resueltas"]];
-let rows = [], filter = "all", busy = new Set(), timer = null;
+let rows = [], filter = "all", busy = new Set(), ws = null;
 
 // Sesión de Supabase Auth vía su API REST (sin SDK). Vive en sessionStorage: se cierra con la pestaña.
 let session = JSON.parse(sessionStorage.getItem("session") || "null");
@@ -124,15 +124,43 @@ async function authRequest(grant, body) {
 // Token vigente; lo renueva un minuto antes de que venza.
 async function token() {
   if (session && Date.now() > session.exp - 60000) {
-    try { await authRequest("refresh_token", { refresh_token: session.refresh }); } catch { logout(); }
+    try { await authRequest("refresh_token", { refresh_token: session.refresh }); send("access_token", { access_token: session.token }); }
+    catch { logout(); }
   }
   return session?.token;
 }
 
 function show() {
   $("login").hidden = !!session; $("app").hidden = !session; $("who").hidden = !session;
-  clearInterval(timer);
-  if (session) { $("email").textContent = session.email; load(); timer = setInterval(load, 3000); } // ponytail: polling; pasar a Supabase Realtime si importa la latencia
+  if (ws) { ws.onclose = null; ws.close(); ws = null; }
+  if (session) { $("email").textContent = session.email; load(); live(); }
+}
+
+// Supabase Realtime por websocket (protocolo Phoenix, sin SDK): ante cualquier cambio en Request se recarga
+// la lista. RLS aplica igual que en la API REST, por eso el join lleva el token del usuario.
+const TOPIC = "realtime:requests";
+let ref = 0, beat = null;
+function send(event, payload, topic = TOPIC) {
+  if (ws?.readyState === 1) ws.send(JSON.stringify({ topic, event, payload, ref: String(++ref) }));
+}
+function status(on, text) { $("dot").className = on ? "dot" : "dot off"; $("upd").textContent = text; }
+
+async function live() {
+  const t = await token();
+  if (!t) return;
+  ws = new WebSocket(`${SB.replace(/^http/, "ws")}/realtime/v1/websocket?apikey=${KEY}&vsn=1.0.0`);
+  ws.onopen = () => {
+    send("phx_join", { config: { postgres_changes: [{ event: "*", schema: "public", table: "Request" }] }, access_token: t });
+    beat = setInterval(() => send("heartbeat", {}, "phoenix"), 25000);
+  };
+  ws.onmessage = (m) => {
+    const { event, payload } = JSON.parse(m.data);
+    if (event === "phx_reply" && payload.status === "ok") status(true, "en vivo");
+    if (event === "postgres_changes") load();
+    if (event === "phx_error" || (event === "system" && payload.status === "error")) ws.close();
+  };
+  // Si se corta (red, token vencido), reconecta y recarga por si se perdió algún cambio.
+  ws.onclose = () => { clearInterval(beat); status(false, "reconectando…"); setTimeout(() => session && (load(), live()), 3000); };
 }
 
 function logout() { session = null; sessionStorage.removeItem("session"); rows = []; show(); }
@@ -170,10 +198,8 @@ async function load() {
     if (res.status === 401) return logout();
     if (!res.ok) throw new Error(`Supabase respondió ${res.status}`);
     rows = await res.json();
-    $("dot").className = "dot";
-    $("upd").textContent = "en vivo · " + new Date().toLocaleTimeString();
   } catch (e) {
-    $("dot").className = "dot off"; $("upd").textContent = "sin conexión";
+    status(false, "sin conexión");
     toast(e.message);
   }
   render();
