@@ -39,7 +39,7 @@
           "mode": "list",
           "cachedResultName": "todo-soporte-triage"
         },
-        "text": "={{ $json.text }}",
+        "text": "={{ $json.text || 'Solicitud ' + $('Webhook: respuesta de Slack').item.json.body.requestId + ': ' + $json.status }}",
         "otherOptions": {}
       },
       "type": "n8n-nodes-base.slack",
