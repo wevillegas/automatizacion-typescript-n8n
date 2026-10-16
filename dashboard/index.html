@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Triaje de Soporte</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%236366f1'/%3E%3Cpath d='M9 17l5 5 9-11' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+  :root{
+    --bg:#f4f5fb;--card:#fff;--ink:#14162b;--mute:#6b7089;--line:#e6e8f2;--accent:#6366f1;--shadow:0 1px 2px rgba(20,22,43,.06),0 8px 24px rgba(20,22,43,.05);
+    --pending:#b45309;--pending-bg:#fef3c7;--approved:#047857;--approved-bg:#d1fae5;
+    --rejected:#b91c1c;--rejected-bg:#fee2e2;--resolved:#475569;--resolved-bg:#e2e8f0;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --bg:#0d0f1c;--card:#161933;--ink:#eceefb;--mute:#9297b5;--line:#252a4a;--accent:#818cf8;--shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.25);
+    --pending:#fcd34d;--pending-bg:#4a3a0f;--approved:#6ee7b7;--approved-bg:#0f3a2c;
+    --rejected:#fca5a5;--rejected-bg:#4a1717;--resolved:#cbd5e1;--resolved-bg:#2a3150;
+  }}
+  *{box-sizing:border-box}
+  body{margin:0;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}
+  .wrap{max-width:980px;margin:0 auto;padding:28px 16px 48px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:22px}
+  .brand{display:flex;align-items:center;gap:12px}
+  .logo{width:40px;height:40px;border-radius:12px;background:linear-gradient(135deg,#6366f1,#a855f7);display:grid;place-items:center;box-shadow:var(--shadow)}
+  h1{font-size:20px;margin:0;letter-spacing:-.01em}
+  .sub{color:var(--mute);font-size:13px}
+  .live{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--mute);background:var(--card);padding:6px 12px;border-radius:999px;box-shadow:var(--shadow)}
+  .dot{width:8px;height:8px;border-radius:50%;background:#10b981;box-shadow:0 0 0 0 #10b98188;animation:pulse 2s infinite}
+  .dot.off{background:#ef4444;animation:none}
+  @keyframes pulse{70%{box-shadow:0 0 0 8px #10b98100}100%{box-shadow:0 0 0 0 #10b98100}}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px}
+  .stat{background:var(--card);border-radius:16px;padding:14px 16px;box-shadow:var(--shadow);border:1px solid var(--line)}
+  .stat b{display:block;font-size:28px;line-height:1.1;letter-spacing:-.02em}
+  .stat span{font-size:13px;color:var(--mute)}
+  .stat.attn b{color:var(--pending)}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .chip{border:1px solid var(--line);background:var(--card);color:var(--mute);padding:6px 14px;border-radius:999px;font:inherit;font-size:13px;cursor:pointer;transition:.15s}
+  .chip:hover{color:var(--ink)}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  #list{display:grid;gap:12px}
+  .req{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 18px;box-shadow:var(--shadow);display:grid;gap:10px;animation:in .3s ease}
+  .req.pending{border-left:4px solid #f59e0b}
+  @keyframes in{from{opacity:0;transform:translateY(6px)}}
+  .top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 11px;border-radius:999px;font-size:12px;font-weight:600}
+  .pill.pending{color:var(--pending);background:var(--pending-bg)}
+  .pill.approved{color:var(--approved);background:var(--approved-bg)}
+  .pill.rejected{color:var(--rejected);background:var(--rejected-bg)}
+  .pill.resolved{color:var(--resolved);background:var(--resolved-bg)}
+  .time{color:var(--mute);font-size:12px}
+  .tool{font-weight:600;font-size:16px}
+  .tool small{font-weight:400;color:var(--mute);font-size:12px;margin-left:8px;font-family:ui-monospace,Consolas,monospace;word-break:break-all}
+  pre{margin:0;background:var(--bg);border-radius:10px;padding:10px 12px;font:12px/1.5 ui-monospace,Consolas,monospace;overflow:auto;color:var(--mute)}
+  .actions{display:flex;gap:8px}
+  button.act{border:0;border-radius:10px;padding:8px 18px;font:inherit;font-weight:600;cursor:pointer;transition:.15s}
+  button.act:hover{transform:translateY(-1px);filter:brightness(1.05)}
+  button.act:disabled{opacity:.5;cursor:wait;transform:none}
+  .ok{background:#10b981;color:#fff}
+  .no{background:transparent;color:var(--rejected);border:1px solid var(--rejected)}
+  .empty{text-align:center;padding:56px 16px;color:var(--mute);background:var(--card);border:1px dashed var(--line);border-radius:16px}
+  .empty big{display:block;font-size:34px;margin-bottom:6px}
+  #toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);background:#ef4444;color:#fff;padding:10px 18px;border-radius:12px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:.25s;max-width:90vw}
+  #toast.show{opacity:1;transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <div class="logo"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg></div>
+      <div><h1>Triaje de Soporte</h1><div class="sub">Agente autónomo · aprobación humana para acciones de riesgo</div></div>
+    </div>
+    <div class="live"><span class="dot" id="dot"></span><span id="upd">conectando…</span></div>
+  </header>
+
+  <section class="stats" id="stats"></section>
+  <nav class="filters" id="filters"></nav>
+  <main id="list"></main>
+</div>
+<div id="toast" role="alert"></div>
+
+<script>
+const SB = "__SUPABASE_URL__", KEY = "__SUPABASE_ANON_KEY__";
+const $ = (id) => document.getElementById(id);
+const LABEL = { pending: "⏳ Pendiente", approved: "✓ Aprobada", rejected: "✕ Rechazada", resolved: "● Resuelta" };
+const FILTERS = [["all", "Todas"], ["pending", "Pendientes"], ["approved", "Aprobadas"], ["rejected", "Rechazadas"], ["resolved", "Resueltas"]];
+let rows = [], filter = "all", busy = new Set();
+
+// Estado por requestId, derivado de la última fila de AuditLog.
+function state(r) {
+  if (r.risk !== "high") return "resolved";
+  if (r.decidedBy == null && r.result == null) return "pending";
+  return r.result == null ? "rejected" : "approved";
+}
+
+function ago(iso) {
+  const s = Math.max(0, (Date.now() - new Date(iso)) / 1000);
+  if (s < 60) return "hace segundos";
+  if (s < 3600) return `hace ${Math.floor(s / 60)} min`;
+  if (s < 86400) return `hace ${Math.floor(s / 3600)} h`;
+  return new Date(iso).toLocaleDateString();
+}
+
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("show"), 4000);
+}
+
+async function load() {
+  try {
+    const res = await fetch(`${SB}/rest/v1/AuditLog?select=*&order=createdAt.asc&limit=500`, {
+      headers: { apikey: KEY, Authorization: `Bearer ${KEY}` },
+    });
+    if (!res.ok) throw new Error(`Supabase respondió ${res.status}`);
+    const last = new Map();
+    for (const r of await res.json()) last.set(r.requestId, r);
+    rows = [...last.values()].reverse();
+    $("dot").className = "dot";
+    $("upd").textContent = "en vivo · " + new Date().toLocaleTimeString();
+  } catch (e) {
+    $("dot").className = "dot off"; $("upd").textContent = "sin conexión";
+    toast(e.message);
+  }
+  render();
+}
+
+function render() {
+  const count = (s) => rows.filter((r) => state(r) === s).length;
+  const stats = [["Total", rows.length, ""], ["Pendientes", count("pending"), "attn"], ["Aprobadas", count("approved"), ""], ["Rechazadas", count("rejected"), ""], ["Resueltas", count("resolved"), ""]];
+  $("stats").replaceChildren(...stats.map(([l, n, c]) => el("div", "stat " + c, el("b", "", n), el("span", "", l))));
+
+  $("filters").replaceChildren(...FILTERS.map(([k, l]) => {
+    const b = el("button", "chip" + (k === filter ? " on" : ""), l);
+    b.onclick = () => { filter = k; render(); };
+    return b;
+  }));
+
+  const shown = rows.filter((r) => filter === "all" || state(r) === filter);
+  $("list").replaceChildren(...(shown.length ? shown.map(card) : [empty()]));
+}
+
+function el(tag, cls, ...kids) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  e.append(...kids);
+  return e;
+}
+
+function empty() {
+  const e = el("div", "empty", el("big", "", "📭"), "Sin solicitudes en esta vista.");
+  if (filter === "all") e.append(el("div", "time", "Corré `npm run demo` para generar casos."));
+  return e;
+}
+
+function card(r) {
+  const s = state(r);
+  const c = el("article", "req " + s,
+    el("div", "top", el("span", "pill " + s, LABEL[s]), el("span", "time", ago(r.createdAt))),
+    el("div", "tool", r.toolName, el("small", "", r.requestId)),
+    el("pre", "", JSON.stringify(r.args, null, 2)));
+  if (s === "pending") {
+    const a = el("div", "actions");
+    for (const [txt, ok, cls] of [["Aprobar", true, "ok"], ["Rechazar", false, "no"]]) {
+      const b = el("button", "act " + cls, txt);
+      b.disabled = busy.has(r.requestId);
+      b.onclick = () => decide(r.requestId, ok);
+      a.append(b);
+    }
+    c.append(a);
+  }
+  return c;
+}
+
+async function decide(requestId, approved) {
+  // La API key vive solo en esta pestaña (sessionStorage); nunca viaja en el HTML.
+  const k = sessionStorage.getItem("apiKey") || prompt("API_KEY del agente:");
+  if (!k) return;
+  sessionStorage.setItem("apiKey", k);
+  busy.add(requestId); render();
+  try {
+    const res = await fetch("/approval-callback", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": k },
+      body: JSON.stringify({ requestId, approved, decidedBy: "dashboard" }),
+    });
+    if (res.status === 401) sessionStorage.removeItem("apiKey");
+    if (!res.ok) toast(`Error ${res.status}: ${(await res.text()).slice(0, 120)}`);
+  } catch (e) { toast(e.message); }
+  busy.delete(requestId);
+  load();
+}
+
+load(); setInterval(load, 3000); // ponytail: polling; pasar a Supabase Realtime si importa la latencia
+</script>
+</body>
+</html>

@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import Fastify from "fastify";
 import { z } from "zod";
 import "./tools/examples.js";
@@ -38,6 +39,18 @@ async function logToolExecution(event: ToolExecutedEvent): Promise<void> {
 }
 
 app.get("/health", async () => ({ ok: true }));
+
+// Dashboard estático: lee AuditLog desde Supabase con la anon key (pública por diseño, limitada por RLS).
+app.get("/dashboard", async (_req, reply) => {
+  const { SUPABASE_URL, SUPABASE_ANON_KEY } = process.env;
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    return reply.status(503).send({ error: "SUPABASE_URL y SUPABASE_ANON_KEY no configuradas" });
+  }
+  const html = readFileSync("dashboard/index.html", "utf8")
+    .replace("__SUPABASE_URL__", SUPABASE_URL)
+    .replace("__SUPABASE_ANON_KEY__", SUPABASE_ANON_KEY);
+  return reply.type("text/html").send(html);
+});
 
 const triageSchema = z.object({
   requestId: z.string(),

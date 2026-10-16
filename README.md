@@ -32,6 +32,18 @@ npm test
 npm run evals
 ```
 
+## Dashboard + Supabase
+
+Supabase es solo Postgres administrado: el agente (Prisma) escribe ahí y el dashboard lee `AuditLog` por la API REST de Supabase.
+
+1. Crear un proyecto en supabase.com. En `.env`: `DATABASE_URL` (Project Settings → Database, conexión directa o session pooler) y, para Docker, `AGENT_DATABASE_URL` con el mismo valor.
+2. `npx prisma migrate deploy` para crear las tablas.
+3. Ejecutar `supabase/policies.sql` en el SQL Editor (activa RLS: la anon key solo puede leer `AuditLog`, nunca `PendingApproval`).
+4. Completar `SUPABASE_URL` y `SUPABASE_ANON_KEY` (Project Settings → API) y levantar el agente.
+5. Abrir http://localhost:3000/dashboard y correr `npm run demo` (3 casos: simple, riesgo alto, prompt injection). Los pendientes se aprueban o rechazan desde la página, que pide la `API_KEY` una vez por pestaña.
+
+Nunca poner la `service_role` key en el dashboard.
+
 ## Estructura
 
 - `src/llm/` — interfaz `LLMProvider` y adaptador de Gemini (Claude se agrega como otro adaptador).
