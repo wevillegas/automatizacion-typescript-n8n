@@ -60,6 +60,14 @@
   .no{background:transparent;color:var(--rejected);border:1px solid var(--rejected)}
   .empty{text-align:center;padding:56px 16px;color:var(--mute);background:var(--card);border:1px dashed var(--line);border-radius:16px}
   .empty big{display:block;font-size:34px;margin-bottom:6px}
+  .who{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--mute)}
+  .who button{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:5px 12px;font:inherit;font-size:13px;cursor:pointer}
+  #login{max-width:360px;margin:48px auto;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:24px;box-shadow:var(--shadow);display:grid;gap:12px}
+  #login h2{margin:0;font-size:18px}
+  #login label{display:grid;gap:4px;font-size:13px;color:var(--mute)}
+  #login input{font:inherit;font-size:15px;padding:9px 12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink)}
+  #login button{margin-top:4px;padding:10px;border:0;border-radius:10px;background:var(--accent);color:#fff;font:inherit;font-weight:600;cursor:pointer}
+  [hidden]{display:none!important}
   #toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);background:#ef4444;color:#fff;padding:10px 18px;border-radius:12px;box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:.25s;max-width:90vw}
   #toast.show{opacity:1;transform:translate(-50%,0)}
 </style>
@@ -71,12 +79,25 @@
       <div class="logo"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg></div>
       <div><h1>Triaje de Soporte</h1><div class="sub">Agente autónomo · aprobación humana para acciones de riesgo</div></div>
     </div>
-    <div class="live"><span class="dot" id="dot"></span><span id="upd">conectando…</span></div>
+    <div class="who" id="who" hidden>
+      <div class="live"><span class="dot" id="dot"></span><span id="upd">conectando…</span></div>
+      <span id="email"></span><button id="logout">Salir</button>
+    </div>
   </header>
 
-  <section class="stats" id="stats"></section>
-  <nav class="filters" id="filters"></nav>
-  <main id="list"></main>
+  <form id="login" hidden>
+    <h2>Iniciar sesión</h2>
+    <div class="sub">Las aprobaciones quedan registradas con tu usuario.</div>
+    <label>Email<input type="email" name="email" autocomplete="username" required></label>
+    <label>Contraseña<input type="password" name="password" autocomplete="current-password" required></label>
+    <button>Entrar</button>
+  </form>
+
+  <div id="app" hidden>
+    <section class="stats" id="stats"></section>
+    <nav class="filters" id="filters"></nav>
+    <main id="list"></main>
+  </div>
 </div>
 <div id="toast" role="alert"></div>
 
@@ -85,7 +106,44 @@ const SB = "__SUPABASE_URL__", KEY = "__SUPABASE_ANON_KEY__";
 const $ = (id) => document.getElementById(id);
 const LABEL = { pending: "⏳ Pendiente", approved: "✓ Aprobada", rejected: "✕ Rechazada", resolved: "● Resuelta" };
 const FILTERS = [["all", "Todas"], ["pending", "Pendientes"], ["approved", "Aprobadas"], ["rejected", "Rechazadas"], ["resolved", "Resueltas"]];
-let rows = [], filter = "all", busy = new Set();
+let rows = [], filter = "all", busy = new Set(), timer = null;
+
+// Sesión de Supabase Auth vía su API REST (sin SDK). Vive en sessionStorage: se cierra con la pestaña.
+let session = JSON.parse(sessionStorage.getItem("session") || "null");
+
+async function authRequest(grant, body) {
+  const res = await fetch(`${SB}/auth/v1/token?grant_type=${grant}`, {
+    method: "POST", headers: { apikey: KEY, "content-type": "application/json" }, body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error_description || data.msg || "No se pudo iniciar sesión");
+  session = { token: data.access_token, refresh: data.refresh_token, exp: Date.now() + data.expires_in * 1000, email: data.user.email };
+  sessionStorage.setItem("session", JSON.stringify(session));
+}
+
+// Token vigente; lo renueva un minuto antes de que venza.
+async function token() {
+  if (session && Date.now() > session.exp - 60000) {
+    try { await authRequest("refresh_token", { refresh_token: session.refresh }); } catch { logout(); }
+  }
+  return session?.token;
+}
+
+function show() {
+  $("login").hidden = !!session; $("app").hidden = !session; $("who").hidden = !session;
+  clearInterval(timer);
+  if (session) { $("email").textContent = session.email; load(); timer = setInterval(load, 3000); } // ponytail: polling; pasar a Supabase Realtime si importa la latencia
+}
+
+function logout() { session = null; sessionStorage.removeItem("session"); rows = []; show(); }
+
+$("logout").onclick = logout;
+$("login").onsubmit = async (e) => {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  try { await authRequest("password", { email: f.get("email"), password: f.get("password") }); e.target.reset(); show(); }
+  catch (err) { toast(err.message); }
+};
 
 const state = (r) => r.status; // resolved | pending | approved | rejected
 
@@ -104,9 +162,12 @@ function toast(msg) {
 
 async function load() {
   try {
+    const t = await token();
+    if (!t) return;
     const res = await fetch(`${SB}/rest/v1/Request?select=*&order=createdAt.desc&limit=200`, {
-      headers: { apikey: KEY, Authorization: `Bearer ${KEY}` },
+      headers: { apikey: KEY, Authorization: `Bearer ${t}` },
     });
+    if (res.status === 401) return logout();
     if (!res.ok) throw new Error(`Supabase respondió ${res.status}`);
     rows = await res.json();
     $("dot").className = "dot";
@@ -168,25 +229,24 @@ function card(r) {
 }
 
 async function decide(requestId, approved) {
-  // La API key vive solo en esta pestaña (sessionStorage); nunca viaja en el HTML.
-  const k = sessionStorage.getItem("apiKey") || prompt("API_KEY del agente:");
-  if (!k) return;
-  sessionStorage.setItem("apiKey", k);
+  // El servidor valida el token contra Supabase y registra el email como decidedBy.
+  const t = await token();
+  if (!t) return;
   busy.add(requestId); render();
   try {
     const res = await fetch("/approval-callback", {
       method: "POST",
-      headers: { "content-type": "application/json", "x-api-key": k },
-      body: JSON.stringify({ requestId, approved, decidedBy: "dashboard" }),
+      headers: { "content-type": "application/json", Authorization: `Bearer ${t}` },
+      body: JSON.stringify({ requestId, approved }),
     });
-    if (res.status === 401) sessionStorage.removeItem("apiKey");
+    if (res.status === 401) logout();
     if (!res.ok) toast(`Error ${res.status}: ${(await res.text()).slice(0, 120)}`);
   } catch (e) { toast(e.message); }
   busy.delete(requestId);
   load();
 }
 
-load(); setInterval(load, 3000); // ponytail: polling; pasar a Supabase Realtime si importa la latencia
+show();
 </script>
 </body>
 </html>

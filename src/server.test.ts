@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 
 // Base en memoria: solo lo que tocan /triage y /approval-callback.
 const pending = new Map<string, any>();
+const audit: any[] = [];
 vi.mock("./db/client.js", () => ({
   prisma: {
     pendingApproval: {
@@ -13,7 +14,7 @@ vi.mock("./db/client.js", () => ({
         return { count: 1 };
       },
     },
-    auditLog: { create: async () => ({}) },
+    auditLog: { create: async ({ data }: any) => void audit.push(data) },
     request: { upsert: async () => ({}), updateMany: async () => ({ count: 1 }) },
   },
 }));
@@ -39,6 +40,7 @@ afterAll(() => app.close());
 
 beforeEach(() => {
   pending.clear();
+  audit.length = 0;
   pending.set("req-1", { requestId: "req-1", toolName: "reactivarCuenta", args: { userId: "8492" }, status: "pending" });
 });
 
@@ -88,5 +90,40 @@ describe("/triage rate limit", () => {
     expect((await triage("t-1")).statusCode).toBe(200);
     expect((await triage("t-2")).statusCode).toBe(200);
     expect((await triage("t-3")).statusCode).toBe(429);
+  });
+});
+
+describe("/approval-callback con login de Supabase", () => {
+  // Fake de Supabase Auth: el token "valido" es de ana@empresa.com.
+  function fakeSupabase(disableSignup: boolean) {
+    process.env.SUPABASE_URL = "https://sb.test";
+    process.env.SUPABASE_ANON_KEY = "anon";
+    vi.stubGlobal("fetch", async (url: string, init: any) => {
+      if (url.endsWith("/auth/v1/settings")) return Response.json({ disable_signup: disableSignup });
+      const ok = init.headers.authorization === "Bearer valido";
+      return ok ? Response.json({ email: "ana@empresa.com" }) : new Response("{}", { status: 401 });
+    });
+  }
+  const withToken = (t: string, body: object) =>
+    app.inject({ method: "POST", url: "/approval-callback", headers: { authorization: `Bearer ${t}` }, payload: body });
+  afterAll(() => vi.unstubAllGlobals());
+
+  it("registra el email del token como decidedBy, ignorando el del body", async () => {
+    fakeSupabase(true);
+    const res = await withToken("valido", { requestId: "req-1", approved: false, decidedBy: "impostor" });
+    expect(res.statusCode).toBe(200);
+    expect(audit.at(-1).decidedBy).toBe("ana@empresa.com");
+  });
+
+  it("401 con un token inválido", async () => {
+    fakeSupabase(true);
+    expect((await withToken("falso", { requestId: "req-1", approved: false })).statusCode).toBe(401);
+    expect(pending.get("req-1").status).toBe("pending");
+  });
+
+  it("403 si el registro público de Supabase está abierto", async () => {
+    fakeSupabase(false);
+    expect((await withToken("valido", { requestId: "req-1", approved: false })).statusCode).toBe(403);
+    expect(pending.get("req-1").status).toBe("pending");
   });
 });

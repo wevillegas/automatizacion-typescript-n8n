@@ -25,6 +25,29 @@ function requireApiKey(req: { headers: Record<string, unknown> }, reply: { statu
   return true;
 }
 
+// Dashboard: usuario logueado en Supabase Auth. Se valida el token contra Supabase y decidedBy sale de ahí,
+// nunca del body. Si el registro está abierto cualquiera con la anon key (pública) podría crearse una cuenta
+// y aprobar, así que en ese caso se rechaza.
+type ApprovalAuth = { email: string | null } | { status: number; error: string };
+async function authorizeApproval(headers: Record<string, unknown>): Promise<ApprovalAuth> {
+  if (headers["x-api-key"] === sharedApiKey) return { email: null }; // n8n: decidedBy viene en el body
+  const auth = headers.authorization;
+  const { SUPABASE_URL, SUPABASE_ANON_KEY } = process.env;
+  if (typeof auth !== "string" || !auth.startsWith("Bearer ") || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    return { status: 401, error: "unauthorized" };
+  }
+  const get = (path: string, extra: Record<string, string> = {}) =>
+    fetch(`${SUPABASE_URL}/auth/v1/${path}`, { headers: { apikey: SUPABASE_ANON_KEY, ...extra } }).then((r) =>
+      r.ok ? r.json() : null,
+    );
+  const [settings, user] = await Promise.all([get("settings"), get("user", { authorization: auth })]);
+  if (!user?.email) return { status: 401, error: "sesión inválida o vencida" };
+  if (settings?.disable_signup !== true) {
+    return { status: 403, error: "deshabilitá el registro público en Supabase Auth para aprobar desde el dashboard" };
+  }
+  return { email: user.email };
+}
+
 async function logToolExecution(event: ToolExecutedEvent): Promise<void> {
   await prisma.auditLog.create({
     data: {
@@ -128,12 +151,14 @@ const approvalSchema = z.object({
 });
 
 app.post("/approval-callback", async (req, reply) => {
-  if (!requireApiKey(req, reply)) return;
+  const auth = await authorizeApproval(req.headers);
+  if ("error" in auth) return reply.status(auth.status).send({ error: auth.error });
   const parsed = approvalSchema.safeParse(req.body);
   if (!parsed.success) {
     return reply.status(400).send({ error: parsed.error.message });
   }
-  const { requestId, approved, decidedBy } = parsed.data;
+  const { requestId, approved } = parsed.data;
+  const decidedBy = auth.email ?? parsed.data.decidedBy;
 
   const pending = await prisma.pendingApproval.findUnique({ where: { requestId } });
   if (!pending) {

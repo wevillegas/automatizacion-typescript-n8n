@@ -34,10 +34,10 @@ Al frenar, el historial de la conversación se guarda en `PendingApproval`, así
 | LLM | Gemini, detrás de `LLMProvider` | Elegir la tool; cambiar de proveedor es agregar un adaptador |
 | Base de datos | PostgreSQL en Supabase, Prisma | Auditoría y aprobaciones pendientes |
 | Orquestación | n8n + Slack | Webhook de entrada y notificaciones |
-| Dashboard | HTML + JS sin dependencias | Ver solicitudes y aprobar/rechazar; lee Supabase con RLS |
+| Dashboard | HTML + JS sin dependencias, Supabase Auth | Login, ver solicitudes y aprobar/rechazar; lee Supabase con RLS |
 | Infra y calidad | Docker Compose, Vitest, evals, GitHub Actions | Levantar todo, tests, medir comportamiento del agente, CI |
 
-Garantías: idempotencia por `requestId`, aprobación atómica (dos aprobaciones simultáneas no ejecutan dos veces), autenticación por `x-api-key`, rate limiting en `/triage` (`TRIAGE_RATE_LIMIT` corridas por minuto, 20 por defecto, para proteger la cuota de Gemini) y RLS en Supabase (la clave pública solo lee `Request` y `AuditLog`).
+Garantías: idempotencia por `requestId`, aprobación atómica (dos aprobaciones simultáneas no ejecutan dos veces), autenticación por `x-api-key`, rate limiting en `/triage` (`TRIAGE_RATE_LIMIT` corridas por minuto, 20 por defecto, para proteger la cuota de Gemini) login con Supabase Auth en el dashboard (`decidedBy` es el email del usuario, tomado del token y no del body) y RLS en Supabase (solo usuarios logueados leen `Request` y `AuditLog`; sin login no se ve nada).
 
 Límites actuales: `createSupportTicket` y `consultarHistorialTickets` siguen simuladas (los usuarios sí son reales, en la tabla `User`) y el dashboard usa polling cada 3 s.
 
@@ -73,9 +73,10 @@ Supabase es solo Postgres administrado: el agente (Prisma) escribe ahí y el das
 
 1. Crear un proyecto en supabase.com. En `.env`: `DATABASE_URL` (Project Settings → Database, conexión directa o session pooler) y, para Docker, `AGENT_DATABASE_URL` con el mismo valor.
 2. `npx prisma migrate deploy` para crear las tablas y `npm run seed` para cargar los usuarios de ejemplo (`u-100` activo, `u-200` y `8492` suspendidos).
-3. Ejecutar `supabase/policies.sql` en el SQL Editor (activa RLS: la anon key solo puede leer `Request` y `AuditLog`, nunca `PendingApproval` ni `User`).
-4. Completar `SUPABASE_URL` y `SUPABASE_ANON_KEY` (Project Settings → API) y levantar el agente.
-5. Abrir http://localhost:3000/dashboard y correr `npm run demo` (3 casos: simple, riesgo alto, prompt injection). Los pendientes se aprueban o rechazan desde la página, que pide la `API_KEY` una vez por pestaña.
+3. Ejecutar `supabase/policies.sql` en el SQL Editor (activa RLS: solo usuarios logueados leen `Request` y `AuditLog`; nadie lee `PendingApproval` ni `User`).
+4. En Authentication: crear los usuarios aprobadores (Users → Add user, con *Auto Confirm User*) y **deshabilitar el registro público** (Sign In / Providers → *Allow new users to sign up* apagado). Con el registro abierto el agente rechaza las aprobaciones del dashboard con 403, porque cualquiera podría crearse una cuenta con la anon key.
+5. Completar `SUPABASE_URL` y `SUPABASE_ANON_KEY` (Project Settings → API) y levantar el agente.
+6. Abrir http://localhost:3000/dashboard, iniciar sesión y correr `npm run demo` (3 casos: simple, riesgo alto, prompt injection). Los pendientes se aprueban o rechazan desde la página y quedan registrados con tu email; la `API_KEY` ya no pasa por el navegador (la sigue usando n8n).
 
 Nunca poner la `service_role` key en el dashboard.
 
