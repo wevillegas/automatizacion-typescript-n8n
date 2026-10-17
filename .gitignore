@@ -3,3 +3,6 @@ dist
 .env
 *.log
 .claude
+
+# Videos de la demo: se suben como adjunto en GitHub, no al repo
+*.mp4

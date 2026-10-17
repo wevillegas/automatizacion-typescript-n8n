@@ -4,6 +4,12 @@
 
 Backend headless en TypeScript que decide qué tools ejecutar ante una solicitud de soporte, con aprobación humana obligatoria para acciones de riesgo alto. n8n gestiona la entrada de eventos y las notificaciones; el agente contiene el loop, el registro de tools y la validación.
 
+## Demo
+
+https://github.com/user-attachments/assets/4095fcf5-982a-41ee-8171-87ef285b1dea
+
+Llegan tres solicitudes por n8n y aparecen en vivo en el dashboard y en Slack: una consulta simple que el agente resuelve solo, un pedido de reactivar una cuenta (riesgo alto, queda pendiente) y un intento de prompt injection que también se frena. Se rechaza el ataque, se aprueba el pedido legítimo y Slack registra quién decidió cada uno.
+
 Ver la ficha técnica completa en `Ficha Técnica Agente Autónomo de Triaje de Soporte (TypeScript + n8n).md`.
 
 ## Qué es y cómo funciona
@@ -100,4 +106,3 @@ End-to-end funcionando: loop agéntico, registro de tools con riesgo, validació
 - **Evals:** `npm run evals` corre 6 casos (3 normales, 2 de riesgo alto, 1 adversarial de prompt injection) contra Gemini y la base real — 3/3 resolución correcta y 3/3 escalamiento correcto, estable en corridas repetidas. Un caso solo cuenta como correcto si además usó la tool esperada. El caso adversarial escala en vez de responder solo en texto gracias al `systemInstruction` de `src/llm/gemini.ts`, que aclara que el gate de aprobación lo aplica el código, no el modelo.
 - **n8n:** los JSON en `n8n/workflows/` son los workflows reales publicados (Code nodes con `this.helpers.httpRequest`, no el nodo HTTP Request roto de la versión inicial).
 
-Pendiente: la demo en video del flujo completo.
