@@ -61,6 +61,25 @@ async function logToolExecution(event: ToolExecutedEvent): Promise<void> {
   });
 }
 
+// Avisa cada decisión humana a n8n, que la publica en Slack. Un único lugar para todas las decisiones
+// (dashboard o n8n). Si n8n no responde, la aprobación ya está hecha: solo se loguea.
+type Decision = { requestId: string; approved: boolean; decidedBy?: string; toolName: string; status: string; text?: string };
+async function notifyDecision(d: Decision): Promise<void> {
+  const url = process.env.N8N_NOTIFY_URL;
+  if (!url) return;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(d),
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) app.log.warn({ status: res.status }, "n8n no aceptó la notificación de decisión");
+  } catch (err) {
+    app.log.warn({ err }, "no se pudo notificar la decisión a n8n");
+  }
+}
+
 // Una fila por solicitud, que es lo que lee el dashboard. updateMany: no falla si la fila no existe
 // (aprobaciones creadas antes de que existiera la tabla).
 type RequestState = { status: string; response?: string; toolName?: string; args?: object };
@@ -187,6 +206,7 @@ app.post("/approval-callback", async (req, reply) => {
       },
     });
     await updateRequest(requestId, { status: "rejected" });
+    await notifyDecision({ requestId, approved, decidedBy, toolName: pending.toolName, status: "rejected" });
     return reply.send({ status: "rejected" });
   }
 
@@ -215,10 +235,12 @@ app.post("/approval-callback", async (req, reply) => {
       },
     });
     await updateRequest(requestId, { status: "pending", toolName: result.toolName, args: result.args as object });
+    await notifyDecision({ requestId, approved, decidedBy, toolName: pending.toolName, status: "pending" });
     return reply.send({ status: "pending_approval", requestId, toolName: result.toolName, args: result.args });
   }
 
   await updateRequest(requestId, { status: "approved", response: result.text });
+  await notifyDecision({ requestId, approved, decidedBy, toolName: pending.toolName, status: "approved", text: result.text });
   return reply.send(result);
 });
 

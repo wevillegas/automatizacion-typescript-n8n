@@ -17,6 +17,7 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       API_KEY: ${API_KEY}
       TRIAGE_RATE_LIMIT: ${TRIAGE_RATE_LIMIT:-20}
+      N8N_NOTIFY_URL: ${N8N_NOTIFY_URL:-http://n8n:5678/webhook/decision-notify}
       SUPABASE_URL: ${SUPABASE_URL:-}
       SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
       PORT: 3000

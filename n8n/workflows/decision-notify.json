@@ -1,0 +1,69 @@
+{
+  "name": "Decision Notify",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "decision-notify",
+        "options": {}
+      },
+      "name": "Webhook: decisión del agente",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        -144
+      ],
+      "id": "b6bc19d7-b899-4b44-bc6c-bdb2b577fcd7",
+      "webhookId": "66a0f3e8-0f1b-4945-b4c5-4c8d5791e036"
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "value": "C0C7WH2FUA3",
+          "mode": "list",
+          "cachedResultName": "todo-soporte-triage"
+        },
+        "text": "={{ ($json.body.approved ? '✅ Aprobado' : '❌ Rechazado') + ' por ' + ($json.body.decidedBy || 'desconocido') + ': ' + $json.body.toolName + ' (' + $json.body.requestId + ')' + ($json.body.text ? '\n' + $json.body.text : '') + ($json.body.status === 'pending' ? '\nEl agente pidió otra acción de riesgo alto: queda pendiente.' : '') }}",
+        "otherOptions": {}
+      },
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2,
+      "position": [
+        -176,
+        -144
+      ],
+      "id": "3605d88d-6918-4862-9176-30ca52c2e286",
+      "name": "Publicar decisión",
+      "webhookId": "e8b4cf85-b2f1-4869-9f76-187c1fc62b29",
+      "credentials": {
+        "slackApi": {
+          "id": "nQrifISn7ywuhqGK",
+          "name": "Slack account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook: decisión del agente": {
+      "main": [
+        [
+          {
+            "node": "Publicar decisión",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "id": "DecisionNotify01",
+  "tags": []
+}

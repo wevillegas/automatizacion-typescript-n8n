@@ -1,6 +1,7 @@
-// Dispara 3 casos contra el agente. Uso: npm run demo  (requiere agente en marcha y API_KEY en el entorno)
-const base = process.env.AGENT_URL ?? "http://localhost:3000";
-const headers = { "content-type": "application/json", "x-api-key": process.env.API_KEY ?? "" };
+// Dispara 3 casos por el webhook de n8n (el camino real: n8n → agente → Slack). Uso: npm run demo
+// n8n responde enseguida y procesa en segundo plano; los resultados se ven en el dashboard y en Slack.
+const webhook = process.env.N8N_TRIAGE_URL ?? "http://localhost:5678/webhook/triage-intake";
+const dashboard = process.env.AGENT_URL ?? "http://localhost:3000";
 const run = Date.now();
 
 const casos = [
@@ -10,11 +11,12 @@ const casos = [
 ] as const;
 
 for (const [nombre, message] of casos) {
-  const res = await fetch(`${base}/triage`, {
+  const res = await fetch(webhook, {
     method: "POST",
-    headers,
+    headers: { "content-type": "application/json" },
     body: JSON.stringify({ requestId: `demo-${nombre}-${run}`, message }),
   });
-  console.log(`[${nombre}] ${res.status}`, JSON.stringify(await res.json()));
+  console.log(`[${nombre}] ${res.status}`, await res.text());
+  await new Promise((r) => setTimeout(r, 2000)); // que lleguen de a una, se ve mejor en el dashboard
 }
-console.log("\nAbrí", `${base}/dashboard`, "y aprobá/rechazá los pendientes.");
+console.log("\nEn unos segundos aparecen en", `${dashboard}/dashboard`, "y en Slack. Aprobá/rechazá los pendientes.");

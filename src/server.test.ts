@@ -115,6 +115,21 @@ describe("/approval-callback con login de Supabase", () => {
     expect(audit.at(-1).decidedBy).toBe("ana@empresa.com");
   });
 
+  it("avisa la decisión a n8n con quién decidió", async () => {
+    fakeSupabase(true);
+    const avisos: any[] = [];
+    const supabaseFetch = globalThis.fetch;
+    process.env.N8N_NOTIFY_URL = "http://n8n.test/webhook/decision-notify";
+    vi.stubGlobal("fetch", async (url: string, init: any) =>
+      url.startsWith("http://n8n.test") ? (avisos.push(JSON.parse(init.body)), new Response("{}")) : supabaseFetch(url, init),
+    );
+    await withToken("valido", { requestId: "req-1", approved: false });
+    delete process.env.N8N_NOTIFY_URL;
+    expect(avisos).toEqual([
+      { requestId: "req-1", approved: false, decidedBy: "ana@empresa.com", toolName: "reactivarCuenta", status: "rejected" },
+    ]);
+  });
+
   it("401 con un token inválido", async () => {
     fakeSupabase(true);
     expect((await withToken("falso", { requestId: "req-1", approved: false })).statusCode).toBe(401);

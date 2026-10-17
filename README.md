@@ -22,6 +22,8 @@ Mensaje ─► n8n (webhook) ─► Agente /triage ─► Gemini elige tool
       respuesta final                 Slack / Dashboard piden decisión
                                                          │
                                /approval-callback ─► se ejecuta y se reanuda el loop
+                                                         │
+                               n8n (decision-notify) ─► Slack: quién aprobó/rechazó
 Todo se registra en AuditLog (Supabase) ─► el Dashboard lo muestra
 ```
 
@@ -76,7 +78,7 @@ Supabase es solo Postgres administrado: el agente (Prisma) escribe ahí y el das
 3. Ejecutar `supabase/policies.sql` en el SQL Editor (activa RLS: solo usuarios logueados leen `Request` y `AuditLog`; nadie lee `PendingApproval`, `User` ni `Ticket`; y agrega `Request` a la publicación de Realtime).
 4. En Authentication: crear los usuarios aprobadores (Users → Add user, con *Auto Confirm User*) y **deshabilitar el registro público** (Sign In / Providers → *Allow new users to sign up* apagado). Con el registro abierto el agente rechaza las aprobaciones del dashboard con 403, porque cualquiera podría crearse una cuenta con la anon key.
 5. Completar `SUPABASE_URL` y `SUPABASE_ANON_KEY` (Project Settings → API) y levantar el agente.
-6. Abrir http://localhost:3000/dashboard, iniciar sesión y correr `npm run demo` (3 casos: simple, riesgo alto, prompt injection). Los pendientes se aprueban o rechazan desde la página y quedan registrados con tu email; la `API_KEY` ya no pasa por el navegador (la sigue usando n8n).
+6. Abrir http://localhost:3000/dashboard, iniciar sesión y correr `npm run demo` (3 casos por el webhook de n8n: simple, riesgo alto, prompt injection; cada resultado se publica en Slack). Los pendientes se aprueban o rechazan desde la página y quedan registrados con tu email; la `API_KEY` ya no pasa por el navegador (la sigue usando n8n).
 
 Nunca poner la `service_role` key en el dashboard.
 
@@ -86,12 +88,12 @@ Nunca poner la `service_role` key en el dashboard.
 - `src/tools/` — registro de tools con nivel de riesgo (`low`/`medium`/`high`) y validación Zod.
 - `src/agent/loop.ts` — loop agéntico; corta y devuelve `pending_approval` ante riesgo alto.
 - `src/server.ts` — endpoints `/triage` (entrada) y `/approval-callback` (resume tras aprobación).
-- `n8n/workflows/` — workflows exportados: intake y callback de aprobación.
+- `n8n/workflows/` — workflows exportados: intake (entrada + Slack), callback de aprobación y `decision-notify` (el agente avisa cada aprobación/rechazo, venga del dashboard o de n8n, y n8n lo publica en Slack).
 - `evals/` — dataset de casos y runner de métricas.
 
 ## Estado actual
 
-End-to-end funcionando: loop agéntico, registro de tools con riesgo, validación Zod, Prisma contra Postgres real, y los dos workflows de n8n (`triage-intake`, `approval-callback`) probados contra el agente dockerizado con Slack.
+End-to-end funcionando: loop agéntico, registro de tools con riesgo, validación Zod, Prisma contra Postgres real, y los tres workflows de n8n (`triage-intake`, `approval-callback`, `decision-notify`) probados contra el agente dockerizado con Slack.
 
 - **Auth:** `/triage` y `/approval-callback` exigen el header `x-api-key`.
 - **Aprobación:** la transición `pending → approved/rejected` es atómica (`updateMany` condicional), así que dos callbacks simultáneos para el mismo `requestId` no pueden procesarse los dos. Si un caso ya aprobado pide una segunda acción de riesgo alto, reusa el mismo `requestId` en vez de generar uno nuevo.
