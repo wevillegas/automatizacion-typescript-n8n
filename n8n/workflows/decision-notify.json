@@ -26,7 +26,7 @@
           "mode": "list",
           "cachedResultName": "todo-soporte-triage"
         },
-        "text": "={{ ($json.body.approved ? '✅ Aprobado' : '❌ Rechazado') + ' por ' + ($json.body.decidedBy || 'desconocido') + ': ' + $json.body.toolName + ' (' + $json.body.requestId + ')' + ($json.body.text ? '\n' + $json.body.text : '') + ($json.body.status === 'pending' ? '\nEl agente pidió otra acción de riesgo alto: queda pendiente.' : '') }}",
+        "text": "={{ ($json.body.approved ? '✅ Aprobado' : '❌ Rechazado') + ' por ' + ($json.body.decidedBy || 'desconocido') + ': ' + $json.body.toolName + ' (' + $json.body.requestId + ')' + ($json.body.text ? '\\n' + $json.body.text : '') + ($json.body.status === 'pending' ? '\\nEl agente pidió otra acción de riesgo alto: queda pendiente.' : '') }}",
         "otherOptions": {}
       },
       "type": "n8n-nodes-base.slack",
